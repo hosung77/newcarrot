@@ -53,7 +53,6 @@ async def get_image(item_id):
     
 
 
-
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend") 
 #루트 패스는 맨 마지막에 작성
 
