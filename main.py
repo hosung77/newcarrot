@@ -51,8 +51,16 @@ async def get_image(item_id):
     return Response(content=bytes.fromhex(image_bytes)) #16진법으로 된 것을 byte 코드로 해서 content를 reponse 하겠다.
 
 @app.post('/signup')
-def signup(id:Annotated[str,Form()], password:Annotated[str,Form()]):
-    print(id, password)
+def signup(id:Annotated[str,Form()], 
+           password:Annotated[str,Form()],
+           name:Annotated[str, Form()],
+           email:Annotated[str, Form()]):
+    cur.execute(f"""
+                INSERT INTO users(id,name,email,password)
+                VALUES ('{id}', '{name}', '{email}', '{password}')
+                """)
+    con.commit()
+   
     return '200'
 
 
