@@ -1,4 +1,4 @@
-from fastapi import FastAPI,UploadFile,Form,Response
+from fastapi import FastAPI,UploadFile,Form,Response,Depends
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.staticfiles import StaticFiles
@@ -7,20 +7,26 @@ from fastapi_login.exceptions import InvalidCredentialsException
 from typing import Annotated
 import sqlite3
 
-app = FastAPI()
+
 
 con = sqlite3.connect('db.db', check_same_thread=False)
 cur = con.cursor()
+
+app = FastAPI()
+
 
 SERCRET = "super-cording"
 manager = LoginManager(SERCRET, '/login')
 
 @manager.user_loader()
-def query_user(id):
+def query_user(data):
+    WHERE_STATEMENTS = f'id="{data}"'  #65강
+    if type(data) == dict:
+        WHERE_STATEMENTS = f'''id="{data['id']}"'''
     con.row_factory = sqlite3.Row
     cur = con.cursor()
     user = cur.execute(f"""
-                       SELECT * from users WHERE id ='{id}'
+                       SELECT * from users WHERE {WHERE_STATEMENTS}
                        """).fetchone()
 
     return user
@@ -30,13 +36,22 @@ def query_user(id):
 def login(id:Annotated[str,Form()], 
            password:Annotated[str,Form()]):
     user = query_user(id) #id를 이용해 query_user 함수를 호출하여 데이터베이스에서 해당 사용자를 찾습니다.
-    print(user['password'])
     if not user:
         raise InvalidCredentialsException #401을 자동으로 생성해서 내려줌
     elif password != user['password']:
        raise InvalidCredentialsException
+   
+    access_token = manager.create_access_token(data={
+       'sub': {
+        'id':user['id'],
+       'name':user['name'],
+       'email':user['email']
+       
+       }
+       
+   })
     
-    return '200' 
+    return {'access_token':access_token} 
 
 
 
@@ -50,8 +65,7 @@ def signup(id:Annotated[str,Form()],
                 VALUES ('{id}', '{name}', '{email}', '{password}')
                 """)
     con.commit()
-   
-    return '200' #이렇게 짜면 이미 가입되어 있는 유저도 가입 가능
+    return '200'                #이렇게 짜면 이미 가입되어 있는 유저도 가입 가능
 
 @app.post('/items')
 async def create_item(image:UploadFile, 
@@ -72,7 +86,7 @@ async def create_item(image:UploadFile,
     return '200'
 
 @app.get('/items')
-async def get_items():
+async def get_items(user=Depends(manager)): #65강 수정부분, 서버에서 유저가 인증상태에서만 응답을
     con.row_factory = sqlite3.Row  #컬렴명도 같이 불러오는 문법
     cur = con.cursor()  #위치를 업데이트 하기 위해
     rows = cur.execute(f"""
@@ -97,4 +111,6 @@ async def get_image(item_id):
 
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend") 
 #루트 패스는 맨 마지막에 작성
+
+
 
